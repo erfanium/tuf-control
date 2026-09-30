@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=TUF Control
+Comment=Fans, performance, battery and lighting for your ASUS laptop
+Exec=@EXEC@
+Icon=io.github.erfanium.TufControl
+Terminal=false
+Type=Application
+Categories=System;Settings;HardwareSettings;GTK;
+Keywords=asus;rog;tuf;fan;curve;battery;keyboard;gpu;power;
+StartupNotify=true

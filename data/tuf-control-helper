@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Privileged helper for TUF Control, run through pkexec.
+# Only performs a fixed set of validated operations.
+set -euo pipefail
+
+ARMOURY=/sys/class/firmware-attributes/asus-armoury/attributes
+NBWMI=/sys/devices/platform/asus-nb-wmi
+CONFIG=/etc/asusd/fan_curves.ron
+
+die() { echo "error: $*" >&2; exit 1; }
+is_int() { [[ "$1" =~ ^[0-9]{1,3}$ ]]; }
+
+case "${1:-}" in
+    ppt)
+        [[ $# -eq 3 ]] && is_int "$2" && is_int "$3" || die "usage: ppt <pl1> <pl2>"
+        if [[ -d "$ARMOURY/ppt_pl1_spl" ]]; then
+            for a in ppt_pl1_spl:$2 ppt_pl2_sppt:$3; do
+                name=${a%%:*} val=${a##*:}
+                min=$(cat "$ARMOURY/$name/min_value") max=$(cat "$ARMOURY/$name/max_value")
+                (( val >= min && val <= max )) || die "$name must be within $min..$max"
+            done
+            echo "$2" > "$ARMOURY/ppt_pl1_spl/current_value"
+            echo "$3" > "$ARMOURY/ppt_pl2_sppt/current_value"
+        elif [[ -e "$NBWMI/ppt_pl1_spl" ]]; then
+            echo "$2" > "$NBWMI/ppt_pl1_spl"
+            echo "$3" > "$NBWMI/ppt_pl2_sppt"
+        else
+            die "no ppt_pl1_spl/ppt_pl2_sppt interface found"
+        fi
+        ;;
+    reset-curve)
+        hw=""
+        for d in /sys/class/hwmon/hwmon*/; do
+            [[ "$(cat "$d/name" 2>/dev/null)" == asus_custom_fan_curve ]] && hw="$d"
+        done
+        [[ -n "$hw" ]] || die "asus_custom_fan_curve hwmon not found"
+        echo 3 > "$hw/pwm1_enable"
+        echo 3 > "$hw/pwm2_enable"
+        sed -i 's/^\(\s*\)enabled: true,/\1enabled: false,/' "$CONFIG"
+        systemctl restart asusd
+        ;;
+    *)
+        die "usage: $0 ppt <pl1> <pl2> | reset-curve"
+        ;;
+esac
